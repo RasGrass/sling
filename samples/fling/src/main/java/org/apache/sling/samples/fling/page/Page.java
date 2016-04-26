@@ -18,27 +18,22 @@
  */
 package org.apache.sling.samples.fling.page;
 
-import javax.inject.Inject;
-
+import org.apache.sling.api.SlingHttpServletRequest;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.Model;
-import org.apache.sling.models.annotations.Optional;
-import org.apache.sling.models.annotations.injectorspecific.Self;
+import org.apache.sling.models.annotations.injectorspecific.SlingObject;
 
+import static org.apache.sling.models.annotations.injectorspecific.InjectionStrategy.OPTIONAL;
 import static org.apache.sling.query.SlingQuery.$;
 
-@Model(adaptables = Resource.class)
+@Model(adaptables = {Resource.class, SlingHttpServletRequest.class})
 public class Page {
 
-    @Self
+    @SlingObject
     protected Resource resource;
 
-    @Inject
-    private String title;
-
-    @Inject
-    @Optional
-    private String content;
+    @SlingObject(injectionStrategy = OPTIONAL)
+    protected SlingHttpServletRequest request;
 
     public Page() {
     }
@@ -52,11 +47,11 @@ public class Page {
     }
 
     public String getTitle() {
-        return title;
+        return resource.getValueMap().get("title", String.class);
     }
 
     public String getContent() {
-        return content;
+        return resource.getValueMap().get("content", String.class);
     }
 
     public Iterable<Page> getParents() {

@@ -22,12 +22,13 @@ import java.util.List;
 
 import javax.mail.internet.MimeMessage;
 
+import org.apache.sling.api.SlingHttpServletRequest;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.OSGiService;
 import org.apache.sling.samples.fling.SmtpService;
 
-@Model(adaptables = Resource.class)
+@Model(adaptables = {Resource.class, SlingHttpServletRequest.class})
 public class MessagesPage extends Page {
 
     @OSGiService
