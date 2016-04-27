@@ -37,6 +37,8 @@ import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceUtil;
 import org.apache.sling.api.resource.ValueMap;
 import org.apache.sling.resourceresolver.impl.helper.ResourceDecoratorTracker;
+import org.apache.sling.resourceresolver.impl.mapping.MapEntries;
+import org.apache.sling.resourceresolver.impl.mapping.Mapping;
 import org.apache.sling.resourceresolver.impl.providers.ResourceProviderHandler;
 import org.apache.sling.resourceresolver.impl.providers.ResourceProviderStorage;
 import org.apache.sling.resourceresolver.impl.providers.ResourceProviderStorageProvider;
@@ -45,6 +47,7 @@ import org.apache.sling.spi.resource.provider.ResolveContext;
 import org.apache.sling.spi.resource.provider.ResourceContext;
 import org.apache.sling.spi.resource.provider.ResourceProvider;
 import org.junit.Before;
+import static org.mockito.Matchers.anyString;
 import org.mockito.Mockito;
 
 /** Base class for tests that involve ResourceDecorators */
@@ -131,7 +134,8 @@ public abstract class ResourceDecoratorTestBase {
         };
 
         ResourceResolverFactoryActivator activator = new ResourceResolverFactoryActivator();
-        final CommonResourceResolverFactoryImpl crf = new CommonResourceResolverFactoryImpl(activator) {
+        activator.bindMappingProviderService(new DefaultMappingProviderService());
+        final CommonResourceResolverFactoryImpl crf = Mockito.spy(new CommonResourceResolverFactoryImpl(activator) {
             @Override
             public ResourceDecoratorTracker getResourceDecoratorTracker() {
                 return t;
@@ -141,8 +145,8 @@ public abstract class ResourceDecoratorTestBase {
             public ResourceAccessSecurityTracker getResourceAccessSecurityTracker() {
                 return new ResourceAccessSecurityTracker();
             }
-        };
-
+        });
+        Mockito.when(crf.getMapEntries(anyString())).thenReturn(MapEntries.EMPTY);
         final List<ResourceProviderHandler> list = Arrays.asList(MockedResourceResolverImplTest.createRPHandler(provider, "A-provider", 0L, "/"));
         resolver = new ResourceResolverImpl(crf, false, null, new ResourceProviderStorageProvider() {
 

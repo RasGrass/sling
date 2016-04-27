@@ -31,6 +31,8 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceMetadata;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceUtil;
+import org.apache.sling.resourceresolver.impl.mapping.MapEntries;
+import org.apache.sling.resourceresolver.impl.mapping.Mapping;
 import org.apache.sling.resourceresolver.impl.providers.ResourceProviderHandler;
 import org.apache.sling.resourceresolver.impl.providers.ResourceProviderStorage;
 import org.apache.sling.resourceresolver.impl.providers.ResourceProviderStorageProvider;
@@ -38,6 +40,7 @@ import org.apache.sling.spi.resource.provider.ResolveContext;
 import org.apache.sling.spi.resource.provider.ResourceContext;
 import org.apache.sling.spi.resource.provider.ResourceProvider;
 import org.junit.Test;
+import static org.mockito.Matchers.anyString;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
@@ -59,9 +62,12 @@ public class ProviderHandlerTest {
         Mockito.when(leaveProvider.getResource(Mockito.any(ResolveContext.class), Mockito.eq(servletpath), Mockito.any(ResourceContext.class), Mockito.any(Resource.class))).thenReturn(servletResource);
         final ResourceProviderHandler h = createRPHandler(leaveProvider, "my-pid", 0, servletpath);
         ResourceResolverFactoryActivator activator = new ResourceResolverFactoryActivator();
+        activator.bindMappingProviderService(new DefaultMappingProviderService());
         activator.resourceAccessSecurityTracker = new ResourceAccessSecurityTracker();
-        ResourceResolver resolver = new ResourceResolverImpl(new CommonResourceResolverFactoryImpl(activator), false, null, new ResourceProviderStorageProvider() {
-                
+        CommonResourceResolverFactoryImpl crrfi = Mockito.spy(new CommonResourceResolverFactoryImpl(activator));
+        Mockito.when(crrfi.getMapEntries(anyString())).thenReturn(MapEntries.EMPTY);
+        ResourceResolver resolver = new ResourceResolverImpl(crrfi, false, null, new ResourceProviderStorageProvider() {
+
                 @Override
                 public ResourceProviderStorage getResourceProviderStorage() {
                     return new ResourceProviderStorage(Arrays.asList(h));

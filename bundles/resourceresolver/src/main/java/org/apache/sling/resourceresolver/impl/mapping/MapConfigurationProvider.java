@@ -30,11 +30,11 @@ import org.apache.sling.api.resource.ResourceResolverFactory;
  */
 public interface MapConfigurationProvider extends ResourceResolverFactory {
 
-    String getMapRoot();
+    String getMapRoot(String identifier);
 
     Map<?, ?> getVirtualURLMap();
 
-    Mapping[] getMappings();
+    Mapping[] getMappings(String identifier);
 
     int getDefaultVanityPathRedirectStatus();
 

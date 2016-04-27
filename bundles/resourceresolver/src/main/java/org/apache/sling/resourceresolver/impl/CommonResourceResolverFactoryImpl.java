@@ -31,6 +31,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.commons.collections.BidiMap;
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
@@ -62,6 +63,9 @@ public class CommonResourceResolverFactoryImpl implements ResourceResolverFactor
     /** The activator */
     private final ResourceResolverFactoryActivator activator;
 
+    private final Logger logger = LoggerFactory.getLogger(getClass());
+
+
     /**
      * Thread local holding the resource resolver stack
      */
@@ -80,6 +84,8 @@ public class CommonResourceResolverFactoryImpl implements ResourceResolverFactor
     private final Thread refQueueThread;
 
     private boolean logResourceResolverClosing = false;
+    private Map<String, MapEntries> mapEntriesMap;
+    private BundleContext bundleContext;
 
     /**
      * Create a new common resource resolver factory.
@@ -257,13 +263,29 @@ public class CommonResourceResolverFactoryImpl implements ResourceResolverFactor
         return new ResourceResolverImpl(this, isAdmin, authenticationInfo);
     }
 
-    public MapEntries getMapEntries() {
-        return mapEntries;
+    public MapEntries getMapEntries(String identifier) {
+        if (mapEntriesMap == null
+                || !CollectionUtils.isEqualCollection(this.activator.getMappingProviderIdentifiers(), mapEntriesMap.keySet())) {
+            this.mapEntriesMap = updateMapEntries();
+        }
+        return mapEntriesMap.get(identifier);
+    }
+
+    private Map<String, MapEntries> updateMapEntries() {
+        this.mapEntriesMap = new HashMap<String,MapEntries>();
+        for (String mappingService: this.activator.getMappingProviderIdentifiers()) {
+            try {
+                mapEntriesMap.put(mappingService, new MapEntries(this, bundleContext, this.activator.getEventAdmin(), mappingService));
+            } catch (final Exception e) {
+                logger.error("activate: Cannot access repository, failed setting up Mapping Support", e);
+            }
+        }
+        return mapEntriesMap;
     }
 
     /** Activates this component */
     protected void activate(final BundleContext bundleContext) {
-        final Logger logger = LoggerFactory.getLogger(getClass());
+        this.bundleContext = bundleContext;
         try {
             plugin = new ResourceResolverWebConsolePlugin(bundleContext, this, this.activator.getRuntimeService());
         } catch (final Throwable ignore) {
@@ -272,11 +294,7 @@ public class CommonResourceResolverFactoryImpl implements ResourceResolverFactor
             logger.debug("activate: unable to setup web console plugin.", ignore);
         }
         // set up the map entries from configuration
-        try {
-            mapEntries = new MapEntries(this, bundleContext, this.activator.getEventAdmin());
-        } catch (final Exception e) {
-            logger.error("activate: Cannot access repository, failed setting up Mapping Support", e);
-        }
+            this.mapEntriesMap = updateMapEntries();
     }
 
     /**
@@ -294,6 +312,12 @@ public class CommonResourceResolverFactoryImpl implements ResourceResolverFactor
             mapEntries.dispose();
             mapEntries = MapEntries.EMPTY;
         }
+         if (mapEntriesMap != null && !mapEntriesMap.isEmpty()) {
+             for(MapEntries entries: mapEntriesMap.values()){
+                entries.dispose();
+                entries = MapEntries.EMPTY;
+             }
+        }
         resolverStackHolder = null;
     }
 
@@ -310,13 +334,13 @@ public class CommonResourceResolverFactoryImpl implements ResourceResolverFactor
     }
 
     @Override
-    public String getMapRoot() {
-        return this.activator.getMapRoot();
+    public String getMapRoot(String identifier) {
+        return this.activator.getMapRoot(identifier);
     }
 
     @Override
-    public Mapping[] getMappings() {
-        return this.activator.getMappings();
+    public Mapping[] getMappings(String identifier) {
+        return this.activator.getMappings(identifier);
     }
 
     @Override

@@ -119,7 +119,7 @@ public class ResourceResolverWebConsolePlugin extends HttpServlet {
 
         pw.println("<table class='content' cellpadding='0' cellspacing='0' width='100%'>");
 
-        final MapEntries mapEntries = resolverFactory.getMapEntries();
+        final MapEntries mapEntries = resolverFactory.getMapEntries("default");
 
         titleHtml(pw, "Configuration", null);
         pw.println("<tr class='content'>");
@@ -138,7 +138,7 @@ public class ResourceResolverWebConsolePlugin extends HttpServlet {
         pw.println("<tr class='content'>");
         pw.println("<td class='content'>Mapping Location</td>");
         pw.print("<td class='content' colspan='2'>");
-        pw.print(resolverFactory.getMapRoot());
+        pw.print(resolverFactory.getMapRoot("default"));
         pw.print("</td>");
         pw.println("</tr>");
 
@@ -278,7 +278,7 @@ public class ResourceResolverWebConsolePlugin extends HttpServlet {
 
         separatorText(pw);
 
-        final MapEntries mapEntries = resolverFactory.getMapEntries();
+        final MapEntries mapEntries = resolverFactory.getMapEntries("default");
 
         dumpMapText(pw, "Resolver Map Entries", mapEntries.getResolveMaps());
 

@@ -23,6 +23,9 @@ import java.util.Dictionary;
 import java.util.Hashtable;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.apache.commons.collections.BidiMap;
 import org.apache.commons.collections.bidimap.TreeBidiMap;
@@ -74,7 +77,10 @@ import org.osgi.service.event.EventAdmin;
     @Property(name = Constants.SERVICE_VENDOR, value = "The Apache Software Foundation")
 })
 @References({
-    @Reference(name = "ResourceDecorator", referenceInterface = ResourceDecorator.class, cardinality = ReferenceCardinality.OPTIONAL_MULTIPLE, policy = ReferencePolicy.DYNAMIC)
+        @Reference(name = "ResourceDecorator", referenceInterface = ResourceDecorator.class, cardinality = ReferenceCardinality.OPTIONAL_MULTIPLE, policy = ReferencePolicy.DYNAMIC),
+        @Reference(name = "MappingProvider ", referenceInterface = MappingProvider.class,
+                bind = "bindMappingProviderService", unbind = "unbindMappingProviderService",
+                cardinality = ReferenceCardinality.OPTIONAL_MULTIPLE, policy = ReferencePolicy.DYNAMIC)
 })
 public class ResourceResolverFactoryActivator {
 
@@ -128,11 +134,6 @@ public class ResourceResolverFactoryActivator {
                             "if no configuration is provided is \"true\".")
     private static final String PROP_MANGLE_NAMESPACES = "resource.resolver.manglenamespaces";
 
-    @Property(boolValue = true,
-              label = "Allow Direct Mapping",
-              description = "Whether to add a direct URL mapping to the front of the mapping list.")
-    private static final String PROP_ALLOW_DIRECT = "resource.resolver.allowDirect";
-
     @Property(unbounded=PropertyUnbounded.ARRAY,
               value = "org.apache.sling.jcr.resource.internal.helper.jcr.JcrResourceProviderFactory",
               label = "Required Providers",
@@ -154,24 +155,6 @@ public class ResourceResolverFactoryActivator {
                             "Format is <externalURL>:<internalURL>. Mappings are " +
                             "applied on the complete request URL only.")
     private static final String PROP_VIRTUAL = "resource.resolver.virtual";
-
-    @Property(value = { "/:/", "/content/:/", "/system/docroot/:/" },
-              label = "URL Mappings",
-              description = "List of mappings to apply to paths. Incoming mappings are " +
-                            "applied to request paths to map to resource paths, " +
-                            "outgoing mappings are applied to map resource paths to paths used on subsequent " +
-                            "requests. Form is <internalPathPrefix><op><externalPathPrefix> where <op> is " +
-                            "\">\" for incoming mappings, \"<\" for outgoing mappings and \":\" for mappings " +
-                            "applied in both directions. Mappings are applied in configuration order by " +
-                            "comparing and replacing URL prefixes. Note: The use of \"-\" as the <op> value " +
-                            "indicating a mapping in both directions is deprecated.")
-    private static final String PROP_MAPPING = "resource.resolver.mapping";
-
-    @Property(value = MapEntries.DEFAULT_MAP_ROOT,
-              label = "Mapping Location",
-              description = "The path to the root of the configuration to setup and configure " +
-                            "the ResourceResolver mapping. The default value is /etc/map.")
-    private static final String PROP_MAP_LOCATION = "resource.resolver.map.location";
 
     @Property(intValue = MapEntries.DEFAULT_DEFAULT_VANITY_PATH_REDIRECT_STATUS,
               label = "Default Vanity Path Redirect Status",
@@ -281,6 +264,8 @@ public class ResourceResolverFactoryActivator {
     @Reference
     EventAdmin eventAdmin;
 
+    private final Map<String, MappingProvider> mappingProviderServices = new ConcurrentHashMap<String, MappingProvider>();;
+
     /** Service User Mapper */
     @Reference
     private ServiceUserMapper serviceUserMapper;
@@ -354,8 +339,8 @@ public class ResourceResolverFactoryActivator {
     /**
      * This method is called from {@link MapEntries}
      */
-    public Mapping[] getMappings() {
-        return mappings;
+    public Mapping[] getMappings(String identifier) {
+       return mappingProviderServices.get(identifier).getMappings();
     }
 
     public String[] getSearchPath() {
@@ -367,8 +352,8 @@ public class ResourceResolverFactoryActivator {
 
     }
 
-    public String getMapRoot() {
-        return mapRoot;
+    public String getMapRoot(String identifier) {
+        return mappingProviderServices.get(identifier).getMapRoot();
     }
 
     public int getDefaultVanityPathRedirectStatus() {
@@ -411,6 +396,10 @@ public class ResourceResolverFactoryActivator {
         return logResourceResolverClosing;
     }
 
+    Set<String> getMappingProviderIdentifiers() {
+        return mappingProviderServices.keySet();
+    }
+
     // ---------- SCR Integration ---------------------------------------------
 
     /**
@@ -428,25 +417,6 @@ public class ResourceResolverFactoryActivator {
             virtuals.put(parts[0], parts[2]);
         }
         virtualURLMap = virtuals;
-
-        final List<Mapping> maps = new ArrayList<Mapping>();
-        final String[] mappingList = (String[]) properties.get(PROP_MAPPING);
-        for (int i = 0; mappingList != null && i < mappingList.length; i++) {
-            maps.add(new Mapping(mappingList[i]));
-        }
-        final Mapping[] tmp = maps.toArray(new Mapping[maps.size()]);
-
-        // check whether direct mappings are allowed
-        final Boolean directProp = (Boolean) properties.get(PROP_ALLOW_DIRECT);
-        allowDirect = (directProp != null) ? directProp.booleanValue() : true;
-        if (allowDirect) {
-            final Mapping[] tmp2 = new Mapping[tmp.length + 1];
-            tmp2[0] = Mapping.DIRECT;
-            System.arraycopy(tmp, 0, tmp2, 1, tmp.length);
-            mappings = tmp2;
-        } else {
-            mappings = tmp;
-        }
 
         // from configuration if available
         searchPath = PropertiesUtil.toStringArray(properties.get(PROP_PATH));
@@ -467,9 +437,6 @@ public class ResourceResolverFactoryActivator {
         }
         // namespace mangling
         mangleNamespacePrefixes = PropertiesUtil.toBoolean(properties.get(PROP_MANGLE_NAMESPACES), false);
-
-        // the root of the resolver mappings
-        mapRoot = PropertiesUtil.toString(properties.get(PROP_MAP_LOCATION), MapEntries.DEFAULT_MAP_ROOT);
 
         defaultVanityPathRedirectStatus = PropertiesUtil.toInteger(properties.get(PROP_DEFAULT_VANITY_PATH_REDIRECT_STATUS),
                                                                    MapEntries.DEFAULT_DEFAULT_VANITY_PATH_REDIRECT_STATUS);
@@ -691,6 +658,27 @@ public class ResourceResolverFactoryActivator {
      */
     protected void unbindResourceDecorator(final ResourceDecorator decorator, final Map<String, Object> props) {
         this.resourceDecoratorTracker.unbindResourceDecorator(decorator, props);
+    }
+
+    /**
+     * bind the mappingProvider
+     * @param mappingProvider
+     */
+    protected synchronized void bindMappingProviderService(final MappingProvider mappingProvider) {
+        String identifier = mappingProvider.getIdentifier();
+        if(!mappingProviderServices.containsKey(identifier)) {
+            mappingProviderServices.put(identifier, mappingProvider);
+        } else {
+            throw new IllegalArgumentException("Mapping services identifiers should be unique ("+identifier+")");
+        }
+    }
+
+    /**
+     * unbind the mappingProvider
+     * @param mappingProvider
+     */
+    protected synchronized void unbindMappingProviderService(final MappingProvider mappingProvider) {
+        mappingProviderServices.remove(mappingProvider.getIdentifier());
     }
 
     public ResourceProviderTracker getResourceProviderTracker() {

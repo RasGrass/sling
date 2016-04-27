@@ -48,6 +48,7 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.resource.SyntheticResource;
+import org.apache.sling.resourceresolver.impl.mapping.MapEntries;
 import org.apache.sling.resourceresolver.impl.providers.ResourceProviderHandler;
 import org.apache.sling.resourceresolver.impl.providers.ResourceProviderStorage;
 import org.apache.sling.resourceresolver.impl.providers.ResourceProviderTracker;
@@ -56,6 +57,8 @@ import org.apache.sling.spi.resource.provider.ResourceContext;
 import org.apache.sling.spi.resource.provider.ResourceProvider;
 import org.junit.Before;
 import org.junit.Test;
+import static org.mockito.Matchers.anyString;
+import org.mockito.Mockito;
 import org.mockito.internal.util.reflection.Whitebox;
 
 public class ResourceResolverImplTest {
@@ -89,7 +92,9 @@ public class ResourceResolverImplTest {
         ResourceResolverFactoryActivator activator = new ResourceResolverFactoryActivator();
         activator.resourceProviderTracker = resourceProviderTracker;
         activator.resourceAccessSecurityTracker = new ResourceAccessSecurityTracker();
-        commonFactory = new CommonResourceResolverFactoryImpl(activator);
+        activator.bindMappingProviderService(new DefaultMappingProviderService());
+        commonFactory = Mockito.spy(new CommonResourceResolverFactoryImpl(activator));
+        Mockito.when(commonFactory.getMapEntries(anyString())).thenReturn(MapEntries.EMPTY);
         resFac = new ResourceResolverFactoryImpl(commonFactory, /* TODO: using Bundle */ null, null);
         resResolver = resFac.getAdministrativeResourceResolver(null);
     }
@@ -451,7 +456,9 @@ public class ResourceResolverImplTest {
         validNames.add(ResourceResolverFactory.USER);
         validNames.add("testAttributeString");
         validNames.add("testAttributeNumber");
+        validNames.add("mappingService");
         final Iterator<String> names = rr.getAttributeNames();
+        assertTrue(validNames.remove(names.next()));
         assertTrue(validNames.remove(names.next()));
         assertTrue(validNames.remove(names.next()));
         assertTrue(validNames.remove(names.next()));

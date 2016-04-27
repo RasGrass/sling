@@ -31,6 +31,7 @@ import javax.jcr.Session;
 import org.apache.commons.collections.IteratorUtils;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.resourceresolver.impl.mapping.MapEntries;
 import org.apache.sling.resourceresolver.impl.providers.ResourceProviderStorage;
 import org.apache.sling.resourceresolver.impl.providers.ResourceProviderStorageProvider;
 import org.apache.sling.spi.resource.provider.ResolveContext;
@@ -38,6 +39,7 @@ import org.apache.sling.spi.resource.provider.ResourceContext;
 import org.apache.sling.spi.resource.provider.ResourceProvider;
 import org.junit.Before;
 import org.junit.Test;
+import static org.mockito.Matchers.anyString;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
@@ -67,6 +69,8 @@ public class ResourceResolverMangleNamespacesTest {
             }
         };
 
+        act.bindMappingProviderService(new DefaultMappingProviderService());
+
         Mockito.when(mockedSession.getNamespacePrefix(NS_PREFIX)).thenReturn(NS_URL);
 
         final ResourceProvider<?> rp = new ResourceProvider<Object>() {
@@ -94,10 +98,11 @@ public class ResourceResolverMangleNamespacesTest {
             }
         };
 
-        final CommonResourceResolverFactoryImpl fac = new CommonResourceResolverFactoryImpl(act);
-
+        final CommonResourceResolverFactoryImpl fac = Mockito.spy(new CommonResourceResolverFactoryImpl(act));
+        Mockito.when(fac.getMapEntries(anyString())).thenReturn(MapEntries.EMPTY);
+        
         rr = new ResourceResolverImpl(fac, false, null, new ResourceProviderStorageProvider() {
-            
+
             @Override
             public ResourceProviderStorage getResourceProviderStorage() {
                 return new ResourceProviderStorage(Arrays.asList(MockedResourceResolverImplTest.createRPHandler(rp, "rp1", 0, "/")));

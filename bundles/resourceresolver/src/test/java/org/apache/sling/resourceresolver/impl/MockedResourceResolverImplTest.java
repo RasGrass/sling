@@ -42,6 +42,8 @@ import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.resource.ValueMap;
 import org.apache.sling.api.wrappers.ValueMapDecorator;
+import org.apache.sling.resourceresolver.impl.mapping.MapEntries;
+import org.apache.sling.resourceresolver.impl.mapping.Mapping;
 import org.apache.sling.resourceresolver.impl.observation.ResourceChangeListenerWhiteboard;
 import org.apache.sling.resourceresolver.impl.providers.ResourceProviderHandler;
 import org.apache.sling.resourceresolver.impl.providers.ResourceProviderInfo;
@@ -56,6 +58,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
+import static org.mockito.Matchers.anyString;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
@@ -151,7 +154,8 @@ public class MockedResourceResolverImplTest {
         activator.resourceAccessSecurityTracker = new ResourceAccessSecurityTracker();
         activator.resourceProviderTracker = resourceProviderTracker;
         activator.changeListenerWhiteboard = resourceChangeListenerWhiteboard;
-
+        activator.bindMappingProviderService(new DefaultMappingProviderService());
+        //Mockito.when(activator.getMappings(anyString())).thenReturn(new Mapping[0]);
         handlers.add(createRPHandler(resourceProvider, "org.apache.sling.resourceresolver.impl.DummyTestProvider", 10L, "/single"));
 
         // setup mapping resources at /etc/map to exercise vanity etc.
@@ -174,11 +178,11 @@ public class MockedResourceResolverImplTest {
 
         // configure using Bundle
         Mockito.when(usingBundle.getBundleContext()).thenReturn(usingBundleContext);
-        Mockito.when(usingBundleContext.getBundle()).thenReturn(usingBundle);
+         Mockito.when(usingBundleContext.getBundle()).thenReturn(usingBundle);
 
         // extract any services that were registered into a map.
         ArgumentCaptor<String> classesCaptor = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<Object> serviceCaptor = ArgumentCaptor.forClass(Object.class);
+         ArgumentCaptor<Object> serviceCaptor = ArgumentCaptor.forClass(Object.class);
         @SuppressWarnings("rawtypes")
         ArgumentCaptor<Dictionary> propertiesCaptor = ArgumentCaptor.forClass(Dictionary.class);
         Mockito.verify(bundleContext, Mockito.atLeastOnce()).registerService(
@@ -186,23 +190,24 @@ public class MockedResourceResolverImplTest {
             propertiesCaptor.capture());
 
         int si = 0;
-        List<Object> serviceList = serviceCaptor.getAllValues();
+         List<Object> serviceList = serviceCaptor.getAllValues();
         @SuppressWarnings({ "unused", "rawtypes" })
-        List<Dictionary> servicePropertiesList = propertiesCaptor.getAllValues();
+         List<Dictionary> servicePropertiesList = propertiesCaptor.getAllValues();
         for (String serviceName : classesCaptor.getAllValues()) {
             services.put(serviceName, serviceList.get(si));
-            serviceProperties.put(serviceName, serviceProperties.get(si));
-            si++;
+             serviceProperties.put(serviceName, serviceProperties.get(si));
+                si++;
         }
         // verify that a ResourceResolverFactoryImpl was created and registered.
-        Assert.assertNotNull(services.get(ResourceResolverFactory.class.getName()));
-        Object rrf = services.get(ResourceResolverFactory.class.getName());
-        if (rrf instanceof ServiceFactory) {
-            rrf = ((ServiceFactory) rrf).getService(usingBundle, null);
+           Assert.assertNotNull(services.get(ResourceResolverFactory.class.getName()));
+               Object rrf = services.get(ResourceResolverFactory.class.getName());
+                Object common = services.get(CommonResourceResolverFactoryImpl.class.getName());
+          if (rrf instanceof ServiceFactory) {
+             rrf = ((ServiceFactory) rrf).getService(usingBundle, null);
         }
-        Assert.assertTrue(rrf instanceof ResourceResolverFactoryImpl);
-        resourceResolverFactory = (ResourceResolverFactoryImpl) rrf;
-    }
+         Assert.assertTrue(rrf instanceof ResourceResolverFactoryImpl);
+         resourceResolverFactory = (ResourceResolverFactoryImpl) rrf;
+      }
 
     public static ResourceProviderHandler createRPHandler(ResourceProvider<?> rp, String pid, long ranking,
             String path) {
@@ -446,7 +451,9 @@ public class MockedResourceResolverImplTest {
      */
     @Test
     public void testMapping() throws LoginException {
-        ResourceResolver resourceResolver = resourceResolverFactory.getResourceResolver(null);
+        CommonResourceResolverFactoryImpl crrfi = Mockito.spy(new CommonResourceResolverFactoryImpl(activator));
+        final ResourceResolver resourceResolver = new ResourceResolverImpl(crrfi, true, null, resourceProviderTracker);
+        Mockito.when(crrfi.getMapEntries(anyString())).thenReturn(MapEntries.EMPTY);
         buildResource("/single/test", EMPTY_RESOURCE_LIST, resourceResolver, resourceProvider);
         HttpServletRequest request = Mockito.mock(HttpServletRequest.class);
         Mockito.when(request.getScheme()).thenReturn("http");
@@ -568,8 +575,9 @@ public class MockedResourceResolverImplTest {
     }
 
     @Test public void test_versions() throws LoginException {
-        ResourceResolver resourceResolver = resourceResolverFactory.getResourceResolver(null);
-
+        CommonResourceResolverFactoryImpl crrfi = Mockito.spy(new CommonResourceResolverFactoryImpl(activator));
+        final ResourceResolver resourceResolver = new ResourceResolverImpl(crrfi, true, null, resourceProviderTracker);
+        Mockito.when(crrfi.getMapEntries(anyString())).thenReturn(MapEntries.EMPTY);
         Resource resource = resourceResolver.resolve("/content/test.html;v=1.0");
         Map<String, String> parameters = resource.getResourceMetadata().getParameterMap();
         assertEquals("/content/test.html", resource.getPath());
